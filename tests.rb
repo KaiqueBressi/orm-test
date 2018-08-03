@@ -1,10 +1,15 @@
 require_relative 'obstinacy'
 
 class LegalReference
-  attr_reader :real_estates
+  attr_reader :real_estates, :application_id
 
-  def initialize
+  def initialize(application_id:)
+    @application_id = application_id
     @real_estates = []
+  end
+
+  def add_real_estate(real_estate)
+    @real_estates << real_estate
   end
 end
 
@@ -52,13 +57,25 @@ Obstinacy.configure do
     end
 
     mapper_for Address do
-      attribute :type
-      attribute :alienated
-      attribute :condominium
+      attribute :street
+      attribute :number
+      attribute :complement
+      attribute :neighborhood
+      attribute :city
+      attribute :state
+      attribute :zip_code
     end
   end
 end
 
 session = Obstinacy::Session.new
 
-puts Obstinacy.configuration.mappings.map(&:inspect)
+legal_reference = LegalReference.new(application_id: '2ef6dbfa-912e-11e8-a32f-33db79903c4e')
+address = Address.new(street: 'rua', number: 'numero', complement: 'complemento', neighborhood: 'bairro', city: 'São Paulo', state: 'SP', zip_code: '08320-310')
+real_estate = RealEstate.new(type: 'apartment', alienated: true, condominium: true, address: address)
+
+legal_reference.add_real_estate(real_estate)
+
+session.create(legal_reference)
+
+session.commit
