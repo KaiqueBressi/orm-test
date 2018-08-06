@@ -1,9 +1,38 @@
 require_relative 'obstinacy'
+require 'securerandom'
+
+
+
+DB = Sequel.sqlite 
+Sequel::Model.unrestrict_primary_key
+
+DB.create_table :legal_risk_analysis_legal_references do
+  primary_key :id, auto_increment: false
+  String :application_id
+end
+
+DB.logger = Logger.new($stdout)
+
+DB.create_table :legal_risk_analysis_real_estates do
+  primary_key :id, auto_increment: false
+  foreign_key :legal_reference_id, :legal_risk_analysis_legal_references, null: false
+  String :type
+  TrueClass :alienated
+  TrueClass :condominium
+  String :street
+  String :number
+  String :complement
+  String :neighborhood
+  String :city
+  String :state
+  String :zip_code
+end
 
 class LegalReference
-  attr_reader :real_estates, :application_id
+  attr_reader :id, :real_estates, :application_id
 
   def initialize(application_id:)
+    @id = 1
     @application_id = application_id
     @real_estates = []
   end
@@ -14,9 +43,10 @@ class LegalReference
 end
 
 class RealEstate
-  attr_reader :type, :alienated, :condominium, :address
+  attr_reader :type, :alienated, :condominium, :address, :id
 
   def initialize(type:, alienated:, condominium:, address:)
+    @id = 2
     @type = type
     @alienated = alienated
     @condominium = condominium
@@ -41,6 +71,9 @@ end
 Obstinacy.configure do
   mapping do
     mapper_for RealEstate do
+      attribute :id
+      foreign_key :legal_reference_id
+
       attribute :type
       attribute :alienated
       attribute :condominium
@@ -50,6 +83,7 @@ Obstinacy.configure do
     end
 
     mapper_for LegalReference do
+      attribute :id
       attribute :application_id
       has_many :real_estates, RealEstate
 
@@ -68,7 +102,6 @@ Obstinacy.configure do
   end
 end
 
-session = Obstinacy::Session.new
 
 legal_reference = LegalReference.new(application_id: '2ef6dbfa-912e-11e8-a32f-33db79903c4e')
 address = Address.new(street: 'rua', number: 'numero', complement: 'complemento', neighborhood: 'bairro', city: 'São Paulo', state: 'SP', zip_code: '08320-310')
@@ -76,6 +109,7 @@ real_estate = RealEstate.new(type: 'apartment', alienated: true, condominium: tr
 
 legal_reference.add_real_estate(real_estate)
 
+session = Obstinacy::Session.new
 session.create(legal_reference)
-
+#session.update(legal_reference)
 session.commit

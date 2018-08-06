@@ -1,9 +1,10 @@
 require_relative 'relationship'
 require_relative 'value_object'
+require_relative '../persistence/persistence_model'
 
 module Obstinacy
   class Mapper
-    attr_reader :attributes, :relationships, :value_objects, :entity_class, :repository_class, :table_name
+    attr_reader :attributes, :relationships, :value_objects, :entity_class, :repository_class, :table_name, :foreign_key
 
     def initialize(entity_class, &block)
       @attributes = []
@@ -29,6 +30,10 @@ module Obstinacy
       @value_objects << Obstinacy::ValueObject.new(attribute_name, value_object_class)
     end
 
+    def foreign_key(foreign_key)
+      @foreign_key = foreign_key
+    end
+
     def has_many(attribute_name, relationship_class)
       @relationships << Obstinacy::Relationship.new(attribute_name, relationship_class, :has_many)
     end
@@ -46,22 +51,22 @@ module Obstinacy
     def to_persistence_model(entity)
       attributes = map_from_entity(entity)
 
-      persistence_model = Sequel::Model(@table_name).new(attributes)
-      { persistence_model => relationships_to_persistence(entity) }
+      sequel_model = Sequel::Model(@table_name).new(attributes)
+      Obstinacy::PersistenceModel.new(sequel_model, entity, relationships_to_persistence_model(entity), @foreign_key)
     end
 
     private
 
-    def relationships_to_persistence(entity)
+    def relationships_to_persistence_model(entity)
       @relationships.map do |relationship|
         relationship_entities = entity.send(relationship.attribute_name)
 
         if relationship.type == :has_many
-          relationship_entities.each do |relationship_entity|
+          relationship_entities.map do |relationship_entity|
             relationship.mapper.to_persistence_model(relationship_entity)
           end
         else
-          relationship.mapper.to_persistence_model(relationship_entity)
+          [relationship.mapper.to_persistence_model(relationship_entity)]
         end
       end
     end

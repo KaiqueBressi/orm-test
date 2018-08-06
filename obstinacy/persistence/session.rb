@@ -1,53 +1,40 @@
 require 'sequel'
 require 'logger'
-require_relative 'in_memory_entity'
-
-DB = Sequel.connect('postgres://postgres@localhost:5432/bankfacil_core_development')
-DB.logger = Logger.new($stdout)
+require_relative 'persistence_model'
 
 module Obstinacy
   class Session
-    attr_reader :in_memory_entities
+    attr_reader :persistence_models
 
     def initialize
-      @in_memory_entities = []
+      @persistence_models = []
     end
 
     def create(entity)
       mapper = get_mapper_from_entity(entity)
-      mapper.to_persistence_model(entity)
-
-      require "pry-byebug"
-      byebug
 
 
-      attributes = mapper.map_from_entity(entity)
+      check_existence
+      
+      @persistence_models << mapper.to_persistence_model(entity)
+    end
 
-      relationships = create_in_memory_relationships(mapper, entity)
-      persistence_model = Sequel::Model(mapper.table_name).new(attributes)
-      @in_memory_entities << InMemoryEntity.new(persistence_model, entity.class, relationships)
+    def update(entity)
+      mapper = get_mapper_from_entity(entity)
     end
 
     def commit
-      @in_memory_entities.each do |in_memory_entity|
-        in_memory_entity.persistence_model.save_changes
+      DB.transaction do 
+        @persistence_models.each do |persistence_model|
+          persistence_model.save_changes
+        end
       end
     end
 
     private
 
-    def create_in_memory_relationships(entity_mapper, entity)
-      entity_mapper.relationships.each_with_object([]) do |relationship, result|
-        relationship_entities = entity.send(relationship.attribute_name)
-
-        relationship_entities.each do |relationship_entity|
-          mapper = relationship.mapper
-          attributes = mapper.map_from_entity(relationship_entity)
-
-          persistence_model = Sequel::Model(mapper.table_name).new(attributes)
-          result << InMemoryEntity.new(persistence_model, relationship.class)
-        end
-      end
+    def exists_in_memory?(entity)
+      @persistence_models.detect { |item| item.id == entity.id }
     end
 
     def get_mapper_from_entity(entity)
