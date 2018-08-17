@@ -4,7 +4,7 @@ require_relative '../persistence/persistence_model'
 
 module Obstinacy
   class Mapper
-    attr_reader :attributes, :relationships, :value_objects, :entity_class, :repository_class, :table_name, :foreign_key
+    attr_reader :attributes, :relationships, :value_objects, :entity_class, :repository_class, :table_name, :foreign_key_name
 
     def initialize(entity_class, &block)
       @attributes = []
@@ -31,7 +31,7 @@ module Obstinacy
     end
 
     def foreign_key(foreign_key)
-      @foreign_key = foreign_key
+      @foreign_key_name = foreign_key
     end
 
     def has_many(attribute_name, relationship_class)
@@ -42,17 +42,34 @@ module Obstinacy
       @relationships << Obstinacy::Relationship.new(attribute_name, relationship_class, :has_one)
     end
 
-    def map_from_entity(entity)
-      persistence_model = {}
-      persistence_model.merge!(map_attributes(entity))
-      persistence_model.merge!(map_value_objects(entity))
+    def map_all_attributes(entity)
+      attributes = {}
+      attributes.merge!(map_attributes(entity))
+      attributes.merge!(map_value_objects(entity))
     end
 
     def to_persistence_model(entity)
-      attributes = map_from_entity(entity)
+      attributes = map_all_attributes(entity)
 
       sequel_model = Sequel::Model(@table_name).new(attributes)
-      Obstinacy::PersistenceModel.new(sequel_model, entity, relationships_to_persistence_model(entity), @foreign_key)
+      Obstinacy::PersistenceModel.new(sequel_model, entity, relationships_to_persistence_model(entity), @foreign_key_name)
+    end
+
+    def to_entity(sequel_model)
+      entity = entity_class.allocate
+
+      @attributes.each do |attribute|
+        entity.instance_variable_set("@#{attribute}", sequel_model[attribute])
+      end
+
+      @value_objects.each do |value_object|
+        value_object_mapper = value_object.mapper
+        vo = value_object_mapper.to_entity(sequel_model)
+
+        entity.instance_variable_set("@#{value_object.attribute_name}", vo)
+      end
+
+      entity
     end
 
     private
@@ -72,15 +89,16 @@ module Obstinacy
     end
 
     def map_attributes(entity)
-      @attributes.each_with_object({}) do |attribute, persistence_model|
-        persistence_model[attribute] = entity.send(attribute)
+      @attributes.each_with_object({}) do |attribute, attributes|
+        attributes[attribute] = entity.send(attribute)
       end
     end
 
     def map_value_objects(entity)
-      @value_objects.each_with_object({}) do |value_object, persistence_model|
+      @value_objects.each_with_object({}) do |value_object, attributes|
         value_object_mapper = value_object.mapper
-        persistence_model.merge!(value_object_mapper.map_from_entity(entity.send(value_object.attribute_name)))
+
+        attributes.merge!(value_object_mapper.map_all_attributes(entity.send(value_object.attribute_name)))
       end
     end
   end
