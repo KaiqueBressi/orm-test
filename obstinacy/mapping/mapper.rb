@@ -52,21 +52,28 @@ module Obstinacy
       attributes = map_all_attributes(entity)
 
       sequel_model = Sequel::Model(@table_name).new(attributes)
-      Obstinacy::PersistenceModel.new(sequel_model, entity, relationships_to_persistence_model(entity), @foreign_key_name)
+      Obstinacy::PersistenceModel.new(sequel_model, relationships_to_persistence_model(entity))
     end
 
-    def to_entity(sequel_model)
+    def to_entity(persistence_model)
       entity = entity_class.allocate
 
       @attributes.each do |attribute|
-        entity.instance_variable_set("@#{attribute}", sequel_model[attribute])
+        entity.instance_variable_set("@#{attribute}", persistence_model[attribute])
       end
 
       @value_objects.each do |value_object|
         value_object_mapper = value_object.mapper
-        vo = value_object_mapper.to_entity(sequel_model)
+        vo = value_object_mapper.to_entity(persistence_model)
 
         entity.instance_variable_set("@#{value_object.attribute_name}", vo)
+      end
+
+      persistence_model.relationship_collection.each do |relationship_collection|
+        relationship_collection.each do |relationship| 
+          require "byebug"
+          byebug
+        end
       end
 
       entity
@@ -80,7 +87,11 @@ module Obstinacy
 
         if relationship.type == :has_many
           relationship_entities.map do |relationship_entity|
-            relationship.mapper.to_persistence_model(relationship_entity)
+            relationship_mapper = relationship.mapper
+            
+            persistence_model = relationship_mapper.to_persistence_model(relationship_entity)
+            persistence_model.send("#{relationship_mapper.foreign_key_name}=", entity.id)
+            persistence_model
           end
         else
           [relationship.mapper.to_persistence_model(relationship_entity)]

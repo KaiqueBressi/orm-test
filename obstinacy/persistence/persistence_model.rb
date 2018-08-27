@@ -1,13 +1,13 @@
 module Obstinacy
-  class PersistenceModel
-    attr_reader :sequel_model, :flagged_as, :entity, :relationship_collection, :foreign_key
+  class PersistenceModel < SimpleDelegator
+    attr_reader :sequel_model, :flagged_as, :relationship_collection
 
-    def initialize(sequel_model, entity, relationship_collection = nil, foreign_key = nil)
+    def initialize(sequel_model, relationship_collection = nil)
       @sequel_model = sequel_model
-      @entity = entity
       @relationship_collection = relationship_collection
       @flagged_as = :clean
-      @foreign_key = foreign_key
+
+      super(sequel_model)
     end
 
     def save_changes
@@ -16,8 +16,6 @@ module Obstinacy
         sequel_model.save_changes
 
         iterate_over_relationships do |relationship|
-          relationship_fk = relationship.foreign_key
-          relationship.send("#{relationship_fk}=", sequel_model.id)
           relationship.save_changes
         end
       when :deleted
@@ -40,14 +38,6 @@ module Obstinacy
       iterate_over_relationships do |relationship|
         relationship.flag_as(flag)
       end
-    end
-
-    def method_missing(method, *args)
-      @sequel_model.send(method, *args)
-    end
-
-    def compare_and_mark(persistence_model)
-
     end
 
     private

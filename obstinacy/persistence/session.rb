@@ -4,41 +4,25 @@ require_relative 'persistence_model'
 
 module Obstinacy
   class Session
-    attr_reader :persistence_models
+    attr_reader :identity_map
 
     def initialize
-      @persistence_models = []
+      @identity_map = {}
     end
 
     def create(entity)
+      fail 'entity already exists on data base' if exists_in_memory?(entity.id)
+
       mapper = get_mapper_from_entity_class(entity.class)
 
-      if exists_in_memory?(entity.id)
-        fail 'entity already exists on data base'
-      end
-
       persistence_model = mapper.to_persistence_model(entity)
-      persistence_model.flag_as(:dirty)
+      persistence_model.flag_as(:new)
 
-      @persistence_models << persistence_model
+      @identity_map[persistence_model] = entity
     end
 
     def update(entity)
-      mapper = get_mapper_from_entity_class(entity.class)
-
-      in_memory = exists_in_memory?(entity.id)
-      fail 'object not attached to the session' unless in_memory
-
-      case in_memory.flagged_as
-      when :dirty
-        index = @persistence_models.index { |persistence_model| persistence_model.id == entity.id }
-
-        @persistence_models[index] = mapper.to_persistence_model(entity)
-      when :clean
-        persistence_model = mapper.to_persistence_model(entity)
-
-        in_memory.compare_and_mark(persistence_model)
-      end
+    
     end
 
     def delete(entity)
@@ -50,54 +34,43 @@ module Obstinacy
 
     def find(id, entity_class)
       persistence_model = exists_in_memory?(id)
-      return persistence_model&.entity if persistence_model
+      return @identity_map[persistence_model] if persistence_model
 
-      mapper = get_mapper_from_entity_class(entity_class)
-
-      sequel_model = Sequel::Model(mapper.table_name).where(id: id).first
-
-      entity = mapper.to_entity(sequel_model)
-      set_relationships(entity, mapper.relationships)
-
-      persistence_model = mapper.to_persistence_model(entity)
-      persistence_model.flag_as(:clean)
-
-      @persistence_models << persistence_model
-      entity
+      entity_mapper = get_mapper_from_entity_class(entity_class)
+      sequel_model = Sequel::Model(entity_mapper.table_name).where(id: id).first
+      
+      persistence_model = PersistenceModel.new(sequel_model, find_relationships(id, entity_mapper.relationships))
+      
+      entity_mapper.to_entity(persistence_model)
     end
 
     def commit
       DB.transaction do
-        @persistence_models.each do |persistence_model|
+        @identity_map.each do |persistence_model, _entity|
           persistence_model.save_changes
         end
       end
 
-      @persistence_models.clear
+      @identity_map.clear
     end
 
     private
 
-    def set_relationships(entity, relationships)
+    def find_relationships(id, relationships)
       relationships.each do |relationship|
         relationship_mapper = relationship.mapper
-        entity.instance_variable_set("@#{relationship.attribute_name}", [])
 
-        relationships_models = Sequel::Model(relationship_mapper.table_name).where(relationship_mapper.foreign_key_name => entity.id).all
-        relationships_models.each do |relationship_model|
-          relationship_entity = relationship_mapper.to_entity(relationship_model)
-
-          set_relationships(relationship_entity, relationship_mapper.relationships)
-
-          entity.instance_variable_get("@#{relationship.attribute_name}").send(:<<, relationship_entity)
+        sequel_models = Sequel::Model(relationship_mapper.table_name).where(relationship_mapper.foreign_key_name => id).all
+        sequel_models.map do |sequel_model|
+          PersistenceModel.new(sequel_model, find_relationships(sequel_model.id, relationship_mapper.relationships))
         end
       end
-
-      entity
     end
 
     def exists_in_memory?(id)
-      @persistence_models.detect { |persistence_model| persistence_model.id == id }
+      @identity_map.detect do |persistence_model, _entity| 
+        persistence_model.id == id
+      end&.first
     end
 
     def get_mapper_from_entity_class(entity_class)
