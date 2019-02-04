@@ -1,6 +1,6 @@
 require_relative 'obstinacy/configuration'
-require_relative 'obstinacy/persistence/session'
-require_relative 'obstinacy/mapping/mapper'
+require_relative 'obstinacy/session'
+require_relative 'obstinacy/mapper'
 
 module Obstinacy
   def self.configure(&block)

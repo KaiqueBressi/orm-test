@@ -1,0 +1,7 @@
+- Update na session
+- Arrumar nome dos métodos privados de mapeamento no mapper.rb
+- Ideia -> Possívelmente separar o mapper DSL do cara que realmente faz o mapeamento
+- Tornar possível outras estratégias de mapeamento aka Construction Injection
+- Locks na session
+- Ordem das tarefas na session
+- Possibilidade de mapear classes abstratas com coluna no banco

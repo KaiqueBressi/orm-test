@@ -1,4 +1,4 @@
-require_relative 'mapping/mapper_registry'
+require_relative 'mapper_registry'
 
 module Obstinacy
   class Configuration

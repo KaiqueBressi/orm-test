@@ -1,6 +1,6 @@
 require_relative 'relationship'
 require_relative 'value_object'
-require_relative '../persistence/persistence_model'
+require_relative 'persistence_model'
 
 module Obstinacy
   class Mapper
@@ -69,10 +69,13 @@ module Obstinacy
         entity.instance_variable_set("@#{value_object.attribute_name}", vo)
       end
 
-      persistence_model.relationship_collection.each do |relationship_collection|
-        relationship_collection.each do |relationship| 
-          require "byebug"
-          byebug
+      persistence_model.relationship_collection.each do |relationship_name, relationships|        
+        relationship_mapper = @relationships.detect { |relationship| relationship.attribute_name == relationship_name }.mapper
+
+        entity.instance_variable_set("@#{relationship_name}", [])
+
+        relationships.each do |relationship|
+          entity.instance_variable_get("@#{relationship_name}") << relationship_mapper.to_entity(relationship)
         end
       end
 
@@ -82,11 +85,11 @@ module Obstinacy
     private
 
     def relationships_to_persistence_model(entity)
-      @relationships.map do |relationship|
+      @relationships.each_with_object({}) do |relationship, persistence_models|
         relationship_entities = entity.send(relationship.attribute_name)
 
         if relationship.type == :has_many
-          relationship_entities.map do |relationship_entity|
+          persistence_models[relationship.attribute_name] = relationship_entities.map do |relationship_entity|
             relationship_mapper = relationship.mapper
             
             persistence_model = relationship_mapper.to_persistence_model(relationship_entity)
@@ -94,7 +97,7 @@ module Obstinacy
             persistence_model
           end
         else
-          [relationship.mapper.to_persistence_model(relationship_entity)]
+          persistence_models[relationship.attribute_name] = [relationship.mapper.to_persistence_model(relationship_entity)]
         end
       end
     end

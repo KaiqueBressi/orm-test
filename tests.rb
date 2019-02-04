@@ -44,6 +44,10 @@ class LegalReference
   def add_real_estate(real_estate)
     @real_estates << real_estate
   end
+
+  def remove_real_estate(real_estate_id)
+    @real_estates.reject! { |real_estate| real_estate.id == real_estate_id }
+  end
 end
 
 class RealEstate
@@ -125,10 +129,13 @@ legal_reference.add_real_estate(real_estate2)
 
 session = Obstinacy::Session.new
 session.create(legal_reference)
-
 session.commit
 
 new_legal_reference = session.find(legal_reference.id, LegalReference)
+new_legal_reference.remove_real_estate(real_estate.id)
+
+session.update(new_legal_reference)
+session.commit
 
 require "byebug"
 byebug

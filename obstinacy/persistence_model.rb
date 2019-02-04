@@ -2,7 +2,7 @@ module Obstinacy
   class PersistenceModel < SimpleDelegator
     attr_reader :sequel_model, :flagged_as, :relationship_collection
 
-    def initialize(sequel_model, relationship_collection = nil)
+    def initialize(sequel_model, relationship_collection)
       @sequel_model = sequel_model
       @relationship_collection = relationship_collection
       @flagged_as = :clean
@@ -32,6 +32,10 @@ module Obstinacy
       self.id == other.id
     end
 
+    def flagged_as?(flag)
+      @flagged_as == flag
+    end
+
     def flag_as(flag)
       @flagged_as = flag
 
@@ -43,7 +47,7 @@ module Obstinacy
     private
 
     def iterate_over_relationships(&block)
-      @relationship_collection.each do |relationships|
+      @relationship_collection.each do |key_, relationships|
         relationships.each do |relationship|
           yield relationship
         end
